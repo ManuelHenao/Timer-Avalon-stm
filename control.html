@@ -20,14 +20,23 @@
 <h2>Controlador de Contador</h2>
 
 <div class="card">
-  <h3>Tiempo</h3>
-  <label>Minutos iniciales para la ronda:</label>
-  <input type="number" id="minutesInput" value="50" min="1">
+  <h3>Modo de Contador</h3>
+  <label>Tipo de Conteo:</label>
+  <select id="timerModeSelect" onchange="changeMode()">
+    <option value="countdown">Cuenta Regresiva (Hacia abajo)</option>
+    <option value="countup">Cuenta Progresiva (Hacia arriba)</option>
+  </select>
+
+  <div id="minutesGroup">
+    <label>Minutos iniciales para la ronda:</label>
+    <input type="number" id="minutesInput" value="50" min="1">
+  </div>
+
   <div class="flex">
     <button class="success" onclick="startTimer()">Iniciar / Reanudar</button>
     <button onclick="pauseTimer()">Pausar</button>
   </div>
-  <button class="danger" onclick="resetTimer()">Reiniciar con nuevo tiempo</button>
+  <button class="danger" onclick="resetTimer()">Reiniciar Contador</button>
 </div>
 
 <div class="card">
@@ -46,71 +55,132 @@
   <label>Color del Texto:</label>
   <input type="color" id="textColorInput" value="#FFFFFF" onchange="updateStyle()">
 
-  <label>Color en Tiempo Extra (Negativo):</label>
+  <label>Color en Tiempo Extra (Solo Regresivo):</label>
   <input type="color" id="overtimeColorInput" value="#FF3333" onchange="updateStyle()">
 </div>
 
 <!-- SDK de Firebase -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, get, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
   // Reemplaza con tus credenciales de Firebase Console
   const firebaseConfig = {
-    apiKey: "AIzaSyCcGSCa2_0013-KlJ2VNOFpeZEzYJoj5Z4",
-    authDomain: "timer-stream-avalon.firebaseapp.com",
-    databaseURL: "https://timer-stream-avalon-default-rtdb.firebaseio.com",
-    projectId: "timer-stream-avalon",
-    storageBucket: "timer-stream-avalon.firebasestorage.app",
-    messagingSenderId: "357534622675",
-    appId: "1:357534622675:web:7784070443afbe09a38526"
+    apiKey: "TU_API_KEY",
+    authDomain: "TU_PROYECTO.firebaseapp.com",
+    databaseURL: "https://TU_PROYECTO-default-rtdb.firebaseio.com",
+    projectId: "TU_PROYECTO",
+    storageBucket: "TU_PROYECTO.appspot.com",
+    messagingSenderId: "NUMERO",
+    appId: "TU_APP_ID"
   };
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
   const timerRef = ref(db, 'timer');
 
+  // Sincronizar estado inicial del panel con Firebase al cargar
+  onValue(timerRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data && data.mode) {
+      document.getElementById('timerModeSelect').value = data.mode;
+      toggleMinutesVisibility(data.mode);
+    }
+  }, { onlyOnce: true });
+
+  function toggleMinutesVisibility(mode) {
+    const minutesGroup = document.getElementById('minutesGroup');
+    if (mode === 'countup') {
+      minutesGroup.style.display = 'none';
+    } else {
+      minutesGroup.style.display = 'block';
+    }
+  }
+
+  window.changeMode = () => {
+    const mode = document.getElementById('timerModeSelect').value;
+    toggleMinutesVisibility(mode);
+    update(timerRef, { mode: mode });
+  };
+
   window.startTimer = async () => {
     const snapshot = await get(timerRef);
     const data = snapshot.val() || {};
-    let target = data.targetTimestamp;
+    const mode = document.getElementById('timerModeSelect').value;
 
-    // Si estaba pausado o no iniciado, re-calcula el target según el tiempo restante
-    if (!data.isRunning) {
-      const remaining = data.remainingMs ?? (parseInt(document.getElementById('minutesInput').value) * 60 * 1000);
-      target = Date.now() + remaining;
+    if (mode === 'countup') {
+      let startTimestamp = data.startTimestamp;
+      if (!data.isRunning) {
+        const elapsed = data.elapsedMs ?? 0;
+        startTimestamp = Date.now() - elapsed;
+      }
+      update(timerRef, {
+        isRunning: true,
+        startTimestamp: startTimestamp,
+        mode: 'countup'
+      });
+    } else {
+      let target = data.targetTimestamp;
+      if (!data.isRunning) {
+        const remaining = data.remainingMs ?? (parseInt(document.getElementById('minutesInput').value) * 60 * 1000);
+        target = Date.now() + remaining;
+      }
+      update(timerRef, {
+        isRunning: true,
+        targetTimestamp: target,
+        mode: 'countdown'
+      });
     }
-
-    update(timerRef, {
-      isRunning: true,
-      targetTimestamp: target
-    });
   };
 
   window.pauseTimer = async () => {
     const snapshot = await get(timerRef);
     const data = snapshot.val();
     if (data && data.isRunning) {
-      const remaining = data.targetTimestamp - Date.now();
-      update(timerRef, {
-        isRunning: false,
-        remainingMs: remaining
-      });
+      if (data.mode === 'countup') {
+        const elapsed = Date.now() - data.startTimestamp;
+        update(timerRef, {
+          isRunning: false,
+          elapsedMs: elapsed
+        });
+      } else {
+        const remaining = data.targetTimestamp - Date.now();
+        update(timerRef, {
+          isRunning: false,
+          remainingMs: remaining
+        });
+      }
     }
   };
 
   window.resetTimer = () => {
-    const mins = parseInt(document.getElementById('minutesInput').value) || 50;
-    const durationMs = mins * 60 * 1000;
-    set(timerRef, {
-      isRunning: false,
-      remainingMs: durationMs,
-      targetTimestamp: Date.now() + durationMs,
-      font: document.getElementById('fontSelect').value,
-      fontSize: document.getElementById('fontSizeInput').value + 'px',
-      color: document.getElementById('textColorInput').value,
-      overtimeColor: document.getElementById('overtimeColorInput').value
-    });
+    const mode = document.getElementById('timerModeSelect').value;
+    
+    if (mode === 'countup') {
+      set(timerRef, {
+        mode: 'countup',
+        isRunning: false,
+        elapsedMs: 0,
+        startTimestamp: Date.now(),
+        font: document.getElementById('fontSelect').value,
+        fontSize: document.getElementById('fontSizeInput').value + 'px',
+        color: document.getElementById('textColorInput').value,
+        overtimeColor: document.getElementById('overtimeColorInput').value
+      });
+    } else {
+      const mins = parseInt(document.getElementById('minutesInput').value) || 50;
+      const durationMs = mins * 60 * 1000;
+      set(timerRef, {
+        mode: 'countdown',
+        isRunning: false,
+        remainingMs: durationMs,
+        targetTimestamp: Date.now() + durationMs,
+        font: document.getElementById('fontSelect').value,
+        fontSize: document.getElementById('fontSizeInput').value + 'px',
+        color: document.getElementById('textColorInput').value,
+        overtimeColor: document.getElementById('overtimeColorInput').value
+      });
+    }
   };
 
   window.updateStyle = () => {
