@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Display OBS</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      background: transparent; /* Fondo transparente para OBS */
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Garantiza centrado absoluto perfecto sin desplazamientos */
+    #timer-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      width: 100%;
+      height: 100%;
+    }
+
+    #timer {
+      /* Usa tabulación monoespaciada para evitar saltos horizontales al cambiar los números */
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum";
+      line-height: 1;
+      white-space: nowrap;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="timer-container">
+  <div id="timer">00:00</div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "TU_API_KEY",
+    authDomain: "TU_PROYECTO.firebaseapp.com",
+    databaseURL: "https://TU_PROYECTO-default-rtdb.firebaseio.com",
+    projectId: "TU_PROYECTO",
+    storageBucket: "TU_PROYECTO.appspot.com",
+    messagingSenderId: "NUMERO",
+    appId: "TU_APP_ID"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const timerRef = ref(db, 'timer');
+
+  const timerDisplay = document.getElementById('timer');
+  let state = {};
+  let intervalId = null;
+
+  onValue(timerRef, (snapshot) => {
+    state = snapshot.val() || {};
+    applyStyles(state);
+    render();
+    
+    if (intervalId) clearInterval(intervalId);
+    intervalId = setInterval(render, 200); // Actualización fluida
+  });
+
+  function applyStyles(s) {
+    if (s.font) timerDisplay.style.fontFamily = s.font;
+    if (s.fontSize) timerDisplay.style.fontSize = s.fontSize;
+  }
+
+  function render() {
+    if (!state.targetTimestamp && state.remainingMs === undefined) return;
+
+    let diff;
+    if (state.isRunning) {
+      diff = state.targetTimestamp - Date.now();
+    } else {
+      diff = state.remainingMs || 0;
+    }
+
+    const isNegative = diff < 0;
+    const absDiff = Math.abs(diff);
+
+    const totalSeconds = Math.floor(absDiff / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    const formattedMin = String(minutes).padStart(2, '0');
+    const formattedSec = String(seconds).padStart(2, '0');
+    const sign = isNegative ? "-" : "";
+
+    timerDisplay.textContent = `${sign}${formattedMin}:${formattedSec}`;
+
+    // Color según el estado
+    if (isNegative) {
+      timerDisplay.style.color = state.overtimeColor || "#FF3333";
+    } else {
+      timerDisplay.style.color = state.color || "#FFFFFF";
+    }
+  }
+</script>
+</body>
+</html>
