@@ -9,14 +9,13 @@
       padding: 0;
       width: 100vw;
       height: 100vh;
-      background: transparent; /* Fondo transparente para OBS */
+      background: transparent;
       overflow: hidden;
       display: flex;
       justify-content: center;
       align-items: center;
     }
 
-    /* Garantiza centrado absoluto perfecto sin desplazamientos */
     #timer-container {
       display: flex;
       justify-content: center;
@@ -27,7 +26,6 @@
     }
 
     #timer {
-      /* Usa tabulación monoespaciada para evitar saltos horizontales al cambiar los números */
       font-variant-numeric: tabular-nums;
       font-feature-settings: "tnum";
       line-height: 1;
@@ -47,13 +45,13 @@
   import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
   const firebaseConfig = {
-    apiKey: "AIzaSyCcGSCa2_0013-KlJ2VNOFpeZEzYJoj5Z4",
-    authDomain: "timer-stream-avalon.firebaseapp.com",
-    databaseURL: "https://timer-stream-avalon-default-rtdb.firebaseio.com",
-    projectId: "timer-stream-avalon",
-    storageBucket: "timer-stream-avalon.firebasestorage.app",
-    messagingSenderId: "357534622675",
-    appId: "1:357534622675:web:7784070443afbe09a38526"
+    apiKey: "TU_API_KEY",
+    authDomain: "TU_PROYECTO.firebaseapp.com",
+    databaseURL: "https://TU_PROYECTO-default-rtdb.firebaseio.com",
+    projectId: "TU_PROYECTO",
+    storageBucket: "TU_PROYECTO.appspot.com",
+    messagingSenderId: "NUMERO",
+    appId: "TU_APP_ID"
   };
 
   const app = initializeApp(firebaseConfig);
@@ -70,7 +68,7 @@
     render();
     
     if (intervalId) clearInterval(intervalId);
-    intervalId = setInterval(render, 200); // Actualización fluida
+    intervalId = setInterval(render, 200);
   });
 
   function applyStyles(s) {
@@ -79,6 +77,38 @@
   }
 
   function render() {
+    const mode = state.mode || 'countdown';
+
+    if (mode === 'countup') {
+      renderCountup();
+    } else {
+      renderCountdown();
+    }
+  }
+
+  function renderCountup() {
+    let elapsedMs = 0;
+
+    if (state.isRunning) {
+      elapsedMs = Date.now() - (state.startTimestamp || Date.now());
+    } else {
+      elapsedMs = state.elapsedMs || 0;
+    }
+
+    if (elapsedMs < 0) elapsedMs = 0;
+
+    const totalSeconds = Math.floor(elapsedMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    const formattedMin = String(minutes).padStart(2, '0');
+    const formattedSec = String(seconds).padStart(2, '0');
+
+    timerDisplay.textContent = `${formattedMin}:${formattedSec}`;
+    timerDisplay.style.color = state.color || "#FFFFFF";
+  }
+
+  function renderCountdown() {
     if (!state.targetTimestamp && state.remainingMs === undefined) return;
 
     let diff;
@@ -101,7 +131,6 @@
 
     timerDisplay.textContent = `${sign}${formattedMin}:${formattedSec}`;
 
-    // Color según el estado
     if (isNegative) {
       timerDisplay.style.color = state.overtimeColor || "#FF3333";
     } else {
